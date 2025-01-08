@@ -114,9 +114,11 @@ async function slashy(token) {
     isSelling: false, // Flag to indicate if the bot is selling fish
     isFishing: false, // Flag to indicate if the bot is fishing
     isPredicting: false, // Flag to indicate if the bot is predicting
+    isBotAbleToFish: true, // Flag to indicate if the bot is able to fish
+    lastFishTimestamp: 0, // Timestamp of the last fish
     isBotBusy: false, // Flag to indicate if the bot is busy
     bucketSpace: 0, // Current bucket space
-    maxBucketSpace: 0, // Maximum bucket space
+    maxBucketSpace: 0, // Maximum bucket space,
   };
 
   // Command management
@@ -339,6 +341,17 @@ async function slashy(token) {
         : await client.channels.fetch(CONFIG.CHANNEL_ID);
       CommandManager.addCommand("fish catch");
       initializeBot();
+
+      // check if the bot is able to fish
+      // auto unstuck the bot if it is stuck
+      setInterval(() => {
+        if (
+          State.isBotAbleToFish &&
+          Date.now() - State.lastFishTimestamp > 60000
+        ) {
+          queue.push("fish catch");
+        }
+      }, 60000);
     } catch (error) {
       console.error("[STARTUP ERROR]", error);
     }
@@ -413,6 +426,7 @@ async function slashy(token) {
     // Handle fishing cooldown
     if (message?.embeds[0]?.description?.includes("You can fish again")) {
       if (!CONFIG.IS_FISHING_ENABLED) return;
+      State.lastFishTimestamp = Date.now();
       await handleFishingCooldown(message);
     }
 
