@@ -8,7 +8,7 @@ const CONFIG = {
   BOT_ID: "270904126974590976", // Discord bot ID to interact with
   PLAY_IN_DMS: false, // Play in DMs instead of server
   CHANNEL_ID: "796729044468367370", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
-  DEV_MODE: false, // Debug mode flag (set to true for additional logging)
+  DEV_MODE: true, // Debug mode flag (set to true for additional logging)
   WEBSITE_USERNAME: "slashy", // Website username
   WEBSITE_PASSWORD: "slashy", // Website
   API_ENDPOINT: "http://localhost:5000/predict", // API endpoint for image prediction
@@ -23,11 +23,31 @@ const CONFIG = {
   COOLDOWNS: {
     highlow: 2500,
     beg: 11000,
-    search: 30000,
     crime: 30000,
     hunt: 30000,
     postmemes: 2300,
+    search: 2300,
   },
+  SEARCH_LOCATIONS: [
+    "Basement",
+    "Bus",
+    "Car",
+    "Coat",
+    "Computer",
+    "Dresser",
+    "Fridge",
+    "Grass",
+    "Laundromat",
+    "Mailbox",
+    "Pantry",
+    "Pocket",
+    "Shoe",
+    "Sink",
+    "Supreme Court",
+    "Twitter",
+    "Vacuum",
+    "Washer",
+  ],
 };
 
 //commands which will prevent the bot from executing other commands
@@ -72,7 +92,7 @@ const Logger = {
   money: (msg) => console.log(chalk.green(`[MONEY]: ${msg}`)),
 };
 // List of available commands to automatically queue
-let AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes"];
+let AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes", "search"];
 // if (CONFIG.IS_FISHING_ENABLED) {
 //   //remove postmemes from the list of available commands if fishing is enabled
 //   AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
@@ -349,7 +369,7 @@ async function slashy(token) {
           State.isBotAbleToFish &&
           Date.now() - State.lastFishTimestamp > 60000
         ) {
-          queue.push("fish catch");
+          CommandManager.addCommand("fish catch");
         }
       }, 60000);
     } catch (error) {
@@ -468,7 +488,7 @@ async function slashy(token) {
       console.log("[DEBUG] Embeds:", message.embeds);
       if (message?.components) {
         console.log("[DEBUG] Attachments:", message.components);
-        console.log("[DEBUG] Components:", message.components[0].components);
+        // console.log("[DEBUG] Components:", message.components[0]?.components);
       }
     }
 
@@ -498,7 +518,21 @@ async function slashy(token) {
         State.isBotBusy = false;
       }
     }
+    // Handle search locations
 
+    if (message?.embeds[0]?.description?.includes("do you want to search")) {
+      const labels = message.components[0]?.components.map((btn) =>
+        btn.label.toLowerCase()
+      );
+      const location = CONFIG.SEARCH_LOCATIONS.find((loc) =>
+        labels.includes(loc.toLowerCase())
+      );
+      // if no location is found, select a random location
+      const index = location
+        ? labels.indexOf(location.toLowerCase())
+        : randomInt(0, labels.length - 1);
+      message.clickButton({ X: index, Y: 0 });
+    }
     // Handle bucket management
     if (message?.embeds[0]?.title?.includes("Viewing Bucket Slots")) {
       if (!CONFIG.IS_FISHING_ENABLED) return;
