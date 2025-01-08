@@ -29,7 +29,7 @@ const CONFIG = {
   },
 };
 
-//commands which will prevent the bot from executing other commands
+//commands which will prevent the bot from executing other commands.
 let BLOCKING_COMMANDS = ["postmemes"];
 
 // Global error handlers
