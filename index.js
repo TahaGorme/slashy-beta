@@ -12,6 +12,7 @@ const CONFIG = {
   WEBSITE_USERNAME: "slashy", // Website username
   WEBSITE_PASSWORD: "slashy", // Website
   API_ENDPOINT: "http://localhost:5000/predict", // API endpoint for image prediction
+  POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
   DELAYS: {
     MIN_COMMAND: 1000, // Minimum delay between commands
     MAX_COMMAND: 2000, // Maximum delay between commands
@@ -24,8 +25,12 @@ const CONFIG = {
     search: 30000,
     crime: 30000,
     hunt: 30000,
+    postmemes: 2300,
   },
 };
+
+//commands which will prevent the bot from executing other commands
+let BLOCKING_COMMANDS = ["postmemes"];
 
 // Global error handlers
 process.on("unhandledRejection", (error) => {
@@ -36,20 +41,23 @@ process.on("uncaughtException", (error) => {
   Logger.error(`An unexpected error occurred: ${error}`);
 });
 
-const express = require('express');
+const express = require("express");
 const app = express();
-const auth = require('http-auth');
-const basic = auth.basic({realm: 'Monitor Area'}, function(user, pass, callback) {
-  callback(user === 'username' && pass === 'password');
-});
+const auth = require("http-auth");
+const basic = auth.basic(
+  { realm: "Monitor Area" },
+  function (user, pass, callback) {
+    callback(user === "username" && pass === "password");
+  }
+);
 
 // Set '' to config path to avoid middleware serving the html page (path must be a string not equal to the wanted route)
-const statusMonitor = require('express-status-monitor')({ path: '' });
+const statusMonitor = require("express-status-monitor")({ path: "" });
 app.use(statusMonitor.middleware); // use the "middleware only" property to manage websockets
-app.get('/status', basic.check(statusMonitor.pageRoute)); // use the pageRoute property to serve the dashboard html page
+app.get("/status", basic.check(statusMonitor.pageRoute)); // use the pageRoute property to serve the dashboard html page
 
 app.listen(3000, () => {
-  console.log('Server listening on port 3000');
+  console.log("Server listening on port 3000");
 });
 
 // Create a user-friendly logging system
@@ -63,7 +71,7 @@ const Logger = {
   money: (msg) => console.log(chalk.green(`[MONEY]: ${msg}`)),
 };
 // List of available commands to automatically queue
-const AVAILABLE_COMMANDS = ["highlow", "beg"];
+const AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes"];
 const TOKENS = fs.readFileSync("tokens.txt", "utf-8").split("\n");
 
 // Start the bot
@@ -98,12 +106,12 @@ async function slashy(token) {
 
   // State management
   const State = {
-    isSelling: false,
-    isFishing: false,
-    isPredicting: false,
-    isBotBusy: false,
-    bucketSpace: 0,
-    maxBucketSpace: 0,
+    isSelling: false, // Flag to indicate if the bot is selling fish
+    isFishing: false, // Flag to indicate if the bot is fishing
+    isPredicting: false, // Flag to indicate if the bot is predicting
+    isBotBusy: false, // Flag to indicate if the bot is busy
+    bucketSpace: 0, // Current bucket space
+    maxBucketSpace: 0, // Maximum bucket space
   };
 
   // Command management
@@ -117,8 +125,16 @@ async function slashy(token) {
     },
 
     async processQueue() {
+      // Prevent execution if the bot is busy or the queue is empty
       if (State.isBotBusy || this.queue.length === 0) return;
-
+      // Move blocking commands to the 2nd position in the queue
+      while (
+        BLOCKING_COMMANDS.includes(this.queue[0].name) &&
+        (State.isFishing || State.isSelling || State.isPredicting)
+      ) {
+        this.queue.splice(1, 0, this.queue.shift());
+      }
+      // Find the first valid command in the queue with no cooldown
       const validCommandIndex = this.queue.findIndex(
         (cmd) =>
           !this.cooldowns[cmd.name] || Date.now() >= this.cooldowns[cmd.name]
@@ -128,6 +144,7 @@ async function slashy(token) {
 
       try {
         State.isBotBusy = true;
+        // Remove the command from the queue and execute
         const command = this.queue.splice(validCommandIndex, 1)[0];
 
         Logger.game(`Executing command: ${command.name}`);
@@ -149,6 +166,7 @@ async function slashy(token) {
 
   // Fishing game handler
   const FishingGame = {
+    // Moves for each square
     moves: {
       1: [0, 1, 1, 2],
       2: [1, 1, 2],
@@ -161,11 +179,13 @@ async function slashy(token) {
     },
 
     async handleMinigame(message, image) {
+      // Prevent execution if the bot is already fishing or the image is missing
       if (!image || State.isFishing) return;
       State.isFishing = true;
       Logger.fish("Started fishing minigame");
 
       try {
+        // Get prediction from the image using the API
         const prediction = await this.getPrediction(image);
         await this.executeMoves(message, prediction);
       } catch (error) {
@@ -190,6 +210,7 @@ async function slashy(token) {
       if (success && moves) {
         for (const move of moves) {
           await new Promise((r) => setTimeout(r, randomInt(100, 300)));
+          // Click the button based on the move
           await message.clickButton({ X: move, Y: 0 });
         }
       } else {
@@ -333,6 +354,7 @@ async function slashy(token) {
       message?.interaction?.user !== client?.user
     )
       return;
+
     await handleNewMessage(message);
   });
 
@@ -387,6 +409,15 @@ async function slashy(token) {
       await FishingGame.handleMinigame(message, message?.embeds[0]?.image?.url);
     }
 
+    // Handle Dead Memes
+    if (
+      message?.embeds[0]?.author?.name?.includes("Meme Posting Session") &&
+      message?.embeds[0]?.description?.includes("dead meme")
+    ) {
+      CommandManager.cooldowns["postmemes"] =
+        Date.now() + 180000 + randomInt(1000, 2000); // retry in 3 minutes + random delay
+    }
+
     // Handle fish selling
     if (
       message?.embeds[0]?.description?.includes(
@@ -403,6 +434,44 @@ async function slashy(token) {
       message?.embeds[0]?.description?.includes("I just chose a secret number")
     ) {
       await handleHighLowGame(message);
+    }
+
+    // Debug mode
+    if (CONFIG.DEV_MODE && message?.embeds) {
+      console.log("[DEBUG] Embeds:", message.embeds);
+      if (message?.components) {
+        console.log("[DEBUG] Attachments:", message.components);
+        console.log("[DEBUG] Components:", message.components[0].components);
+      }
+    }
+
+    // post memes
+    if (message?.embeds[0]?.author?.name?.includes("Meme Posting Session")) {
+      State.isBotBusy = true;
+      try {
+        const selectRandomOption = (menu) =>
+          menu.options[Math.floor(Math.random() * menu.options.length)].value;
+
+        const [PlatformMenu, MemeTypeMenu] = message.components.map(
+          (comp) => comp.components[0]
+        );
+
+        const Platform = CONFIG.POST_MEMES_PLATFORMS.includes("RANDOM")
+          ? selectRandomOption(PlatformMenu)
+          : CONFIG.POST_MEMES_PLATFORMS[
+              Math.floor(Math.random() * CONFIG.POST_MEMES_PLATFORMS.length)
+            ];
+
+        await message.selectMenu(PlatformMenu, [Platform]);
+        await message.selectMenu(MemeTypeMenu, [
+          selectRandomOption(MemeTypeMenu),
+        ]);
+        await message.clickButton({ X: 0, Y: 2 });
+      } catch (e) {
+        Logger.error(`Failed to post meme: ${e.message}`);
+      } finally {
+        State.isBotBusy = false;
+      }
     }
 
     // Handle bucket management
