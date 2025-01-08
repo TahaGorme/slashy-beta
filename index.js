@@ -72,11 +72,11 @@ const Logger = {
   money: (msg) => console.log(chalk.green(`[MONEY]: ${msg}`)),
 };
 // List of available commands to automatically queue
-const AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes"];
-if (CONFIG.IS_FISHING_ENABLED) {
-  //remove postmemes from the list of available commands if fishing is enabled
-  AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
-}
+let AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes"];
+// if (CONFIG.IS_FISHING_ENABLED) {
+//   //remove postmemes from the list of available commands if fishing is enabled
+//   AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
+// }
 const TOKENS = fs.readFileSync("tokens.txt", "utf-8").split("\n");
 
 // Start the bot
@@ -202,6 +202,7 @@ async function slashy(token) {
     },
 
     async getPrediction(image) {
+      State.isBotBusy = true;
       const response = await fetch(CONFIG.API_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -215,11 +216,14 @@ async function slashy(token) {
       if (success && moves) {
         for (const move of moves) {
           await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-          // Click the button based on the move
           await message.clickButton({ X: move, Y: 0 });
+          if (move === moves[moves.length - 1]) {
+            State.isBotBusy = false;
+          }
         }
       } else {
         await this.executeFailsafe(message);
+        State.isBotBusy = false;
       }
     },
 
@@ -471,11 +475,9 @@ async function slashy(token) {
               Math.floor(Math.random() * CONFIG.POST_MEMES_PLATFORMS.length)
             ];
 
-        await message.selectMenu(PlatformMenu, [Platform]);
-        await message.selectMenu(MemeTypeMenu, [
-          selectRandomOption(MemeTypeMenu),
-        ]);
-        await message.clickButton({ X: 0, Y: 2 });
+        message.selectMenu(PlatformMenu, [Platform]);
+        message.selectMenu(MemeTypeMenu, [selectRandomOption(MemeTypeMenu)]);
+        message.clickButton({ X: 0, Y: 2 });
       } catch (e) {
         Logger.error(`Failed to post meme: ${e.message}`);
       } finally {
