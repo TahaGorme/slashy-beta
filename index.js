@@ -13,6 +13,7 @@ const CONFIG = {
   WEBSITE_PASSWORD: "slashy", // Website
   API_ENDPOINT: "http://localhost:5000/predict", // API endpoint for image prediction
   POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
+  IS_FISHING_ENABLED: true, // Enable fishing minigame
   DELAYS: {
     MIN_COMMAND: 1000, // Minimum delay between commands
     MAX_COMMAND: 2000, // Maximum delay between commands
@@ -29,7 +30,7 @@ const CONFIG = {
   },
 };
 
-//commands which will prevent the bot from executing other commands.
+//commands which will prevent the bot from executing other commands
 let BLOCKING_COMMANDS = ["postmemes"];
 
 // Global error handlers
@@ -72,6 +73,10 @@ const Logger = {
 };
 // List of available commands to automatically queue
 const AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes"];
+if (CONFIG.IS_FISHING_ENABLED) {
+  //remove postmemes from the list of available commands if fishing is enabled
+  AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
+}
 const TOKENS = fs.readFileSync("tokens.txt", "utf-8").split("\n");
 
 // Start the bot
@@ -308,6 +313,7 @@ async function slashy(token) {
     if (State.isSelling) return;
 
     try {
+      if (!CONFIG.IS_FISHING_ENABLED) return;
       State.isSelling = true;
       await message.clickButton({ X: 1, Y: 0 });
       console.log("[INFO] Selling fish");
@@ -323,6 +329,7 @@ async function slashy(token) {
     console.log(`[STARTUP] ${client.user.username} is ready!`);
 
     try {
+      if (!CONFIG.IS_FISHING_ENABLED) return;
       CommandManager.channel = CONFIG.PLAY_IN_DMS
         ? await (await client.users.fetch(CONFIG.BOT_ID)).createDM()
         : await client.channels.fetch(CONFIG.CHANNEL_ID);
@@ -401,11 +408,13 @@ async function slashy(token) {
 
     // Handle fishing cooldown
     if (message?.embeds[0]?.description?.includes("You can fish again")) {
+      if (!CONFIG.IS_FISHING_ENABLED) return;
       await handleFishingCooldown(message);
     }
 
     // Handle fishing minigame
     if (message?.embeds[0]?.title?.includes("Fishing...")) {
+      if (!CONFIG.IS_FISHING_ENABLED) return;
       await FishingGame.handleMinigame(message, message?.embeds[0]?.image?.url);
     }
 
@@ -476,11 +485,13 @@ async function slashy(token) {
 
     // Handle bucket management
     if (message?.embeds[0]?.title?.includes("Viewing Bucket Slots")) {
+      if (!CONFIG.IS_FISHING_ENABLED) return;
       await handleBucketView(message);
     }
     if (message?.embeds[0]?.fields[3]?.value) {
       const fields = message.embeds[0]?.fields[3]?.value;
       if (!fields) return;
+      if (!CONFIG.IS_FISHING_ENABLED) return;
 
       const [current, total] = fields
         ?.match(/(\d+) \/ (\d+)/)
