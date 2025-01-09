@@ -28,7 +28,7 @@ const CONFIG = {
     },
     {
       item: "Rifle",
-      quantity: 2,
+      quantity: 10,
     },
   ],
   DELAYS: {
@@ -263,7 +263,7 @@ async function slashy(token) {
       if (success && moves) {
         for (const move of moves) {
           // await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-          message.clickButton({ X: move, Y: 0 });
+          await message.clickButton({ X: move, Y: 0 });
           if (move === moves[moves.length - 1]) {
             State.isBotBusy = false;
           }
@@ -684,11 +684,11 @@ async function slashy(token) {
       );
 
       if (index > -1) {
+        State.latestBuyQuantity = item.quantity;
         message.clickButton({ X: index, Y: 1 });
-        State.latestBuyQuantity = item.quantity;
       } else if (index2 > -1) {
-        message.clickButton({ X: index2, Y: 2 });
         State.latestBuyQuantity = item.quantity;
+        message.clickButton({ X: index2, Y: 2 });
       } else {
         const [_, currentPage, totalPages] = message.embeds[0].footer.text
           .match(/Page (\d+) of (\d+)/)
