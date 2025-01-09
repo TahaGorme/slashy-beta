@@ -533,6 +533,7 @@ async function slashy(token) {
     }
   }
   async function handleInventory(message) {
+    State.isBotBusy = true;
     message.embeds[0].description.split("\n\n").forEach((item) => {
       const [name, quantity] = item.split(" ─ ").map((str) => str.trim());
       const itemName = name
@@ -553,7 +554,11 @@ async function slashy(token) {
       .match(/Page (\d+) of (\d+)/)
       .map(Number);
     console.log(`[INFO] Inventory page ${page} of ${total}`);
-    if (page < total) message.clickButton({ X: 2, Y: 1 });
+    if (page < total) {
+      message.clickButton({ X: 2, Y: 1 });
+    } else {
+      State.isBotBusy = false;
+    }
   }
 
   async function handleNewMessage(message) {
