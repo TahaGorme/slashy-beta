@@ -14,6 +14,7 @@ const CONFIG = {
   API_ENDPOINT: "http://localhost:5000/predict", // API endpoint for image prediction
   POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
   IS_FISHING_ENABLED: true, // Enable fishing minigame
+  IS_STREAMING_ENABLED: true, // Enable streaming minigame
   DELAYS: {
     MIN_COMMAND: 1000, // Minimum delay between commands
     MAX_COMMAND: 2000, // Maximum delay between commands
@@ -139,6 +140,9 @@ async function slashy(token) {
     isBotBusy: false, // Flag to indicate if the bot is busy
     bucketSpace: 0, // Current bucket space
     maxBucketSpace: 0, // Maximum bucket space,
+    inventory: [], // Inventory items
+    lastStreamTimestamp: 0, // Timestamp of the last stream
+    isStreamStillRunning: true, // Flag to indicate if the stream is still running
   };
 
   // Command management
@@ -354,6 +358,10 @@ async function slashy(token) {
   client.on("ready", async () => {
     console.log(`[STARTUP] ${client.user.username} is ready!`);
 
+    CommandManager.addCommand("inventory");
+    if (CONFIG.IS_STREAMING_ENABLED) {
+      CommandManager.addCommand("stream");
+    }
     try {
       if (!CONFIG.IS_FISHING_ENABLED) return;
       CommandManager.channel = CONFIG.PLAY_IN_DMS
@@ -456,6 +464,56 @@ async function slashy(token) {
       await FishingGame.handleMinigame(message, message?.embeds[0]?.image?.url);
     }
 
+    // Handle inventory new pages
+
+    // scrape inventory
+    if (
+      message?.embeds[0]?.author?.name?.includes(
+        `${client.user.username}'s inventory`
+      )
+    ) {
+      handleInventory(message);
+    }
+
+    // handle stream
+    if (message?.embeds[0]?.author?.name?.includes("Stream Manager")) {
+      if (
+        message?.embeds[0]?.description?.includes(
+          "What game do you want to stream"
+        )
+      ) {
+        const trendingGame = await fetch(
+          `https://api.dankmemer.tools/trending`
+        ).then((res) => res.text());
+        const streamMenu = message.components[0].components[0];
+        const streamGame =
+          streamMenu.options.find(
+            (option) =>
+              option.label.replace(/\s/g, "").toLowerCase() ===
+              trendingGame.replace(/\s/g, "").toLowerCase()
+          ) ||
+          streamMenu.options[
+            Math.floor(Math.random() * streamMenu.options.length)
+          ];
+        await message.selectMenu(streamMenu, [streamGame.value]);
+        message.clickButton({ X: 0, Y: 1 });
+
+        setTimeout(() => {
+          message.clickButton({ X: randomInt(0, 2), Y: 0 });
+          State.lastStreamTimestamp = Date.now();
+        }, 1000 * randomInt(15, 30));
+
+        let interval = setInterval(() => {
+          if (State.lastStreamTimestamp - Date.now() > 1000 * 60 * 12) {
+            if (!State.isStreamStillRunning) {
+              clearInterval(interval);
+            }
+            message.clickButton({ X: randomInt(0, 2), Y: 0 });
+            State.lastStreamTimestamp = Date.now();
+          }
+        }, 20000);
+      }
+    }
     // Handle Dead Memes
     if (
       message?.embeds[0]?.author?.name?.includes("Meme Posting Session") &&
@@ -474,6 +532,29 @@ async function slashy(token) {
       await handleFishSelling(message);
     }
   }
+  async function handleInventory(message) {
+    message.embeds[0].description.split("\n\n").forEach((item) => {
+      const [name, quantity] = item.split(" ─ ").map((str) => str.trim());
+      const itemName = name
+        .replace(/^\*\*<:[^>]+>\s*|\*\*/g, "")
+        .toLowerCase()
+        ?.split(">")
+        .pop()
+        .trim();
+      const existingItem = State.inventory.find((i) => i.name === itemName);
+      if (existingItem) {
+        existingItem.quantity = parseInt(quantity);
+      } else {
+        State.inventory.push({ name: itemName, quantity: parseInt(quantity) });
+      }
+    });
+
+    const [_, page, total] = message.embeds[0].footer.text
+      .match(/Page (\d+) of (\d+)/)
+      .map(Number);
+    console.log(`[INFO] Inventory page ${page} of ${total}`);
+    if (page < total) message.clickButton({ X: 2, Y: 1 });
+  }
 
   async function handleNewMessage(message) {
     // Handle high-low game
@@ -490,6 +571,20 @@ async function slashy(token) {
         console.log("[DEBUG] Attachments:", message.components);
         // console.log("[DEBUG] Components:", message.components[0]?.components);
       }
+    }
+
+    // auto stream
+    if (message?.embeds[0]?.author?.name?.includes("Stream Manager")) {
+      await message.clickButton({ X: 0, Y: 0 });
+    }
+
+    // scrape inventory
+    if (
+      message?.embeds[0]?.author?.name?.includes(
+        `${client.user.username}'s inventory`
+      )
+    ) {
+      handleInventory(message);
     }
 
     // post memes
