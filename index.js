@@ -8,13 +8,23 @@ const CONFIG = {
   BOT_ID: "270904126974590976", // Discord bot ID to interact with
   PLAY_IN_DMS: false, // Play in DMs instead of server
   CHANNEL_ID: "796729044468367370", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
-  DEV_MODE: true, // Debug mode flag (set to true for additional logging)
+  DEV_MODE: false, // Debug mode flag (set to true for additional logging)
   WEBSITE_USERNAME: "slashy", // Website username
   WEBSITE_PASSWORD: "slashy", // Website
   API_ENDPOINT: "http://localhost:5000/predict", // API endpoint for image prediction
   POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
   IS_FISHING_ENABLED: true, // Enable fishing minigame
   IS_STREAMING_ENABLED: true, // Enable streaming minigame
+  AUTOBUY: [
+    {
+      item: "Saver",
+      quantity: 2,
+    },
+    {
+      item: "Rifle",
+      quantity: 2,
+    },
+  ],
   DELAYS: {
     MIN_COMMAND: 1000, // Minimum delay between commands
     MAX_COMMAND: 2000, // Maximum delay between commands
@@ -28,6 +38,7 @@ const CONFIG = {
     hunt: 30000,
     postmemes: 2300,
     search: 2300,
+    hunt: 11000,
   },
   SEARCH_LOCATIONS: [
     "Basement",
@@ -56,11 +67,11 @@ let BLOCKING_COMMANDS = ["postmemes"];
 
 // Global error handlers
 process.on("unhandledRejection", (error) => {
-  Logger.error(`Something went wrong with a promise: ${error}`);
+  Logger.error(`Something went wrong with a promise: ${error.stack}`);
 });
 
 process.on("uncaughtException", (error) => {
-  Logger.error(`An unexpected error occurred: ${error}`);
+  Logger.error(`An unexpected error occurred: ${error.stack}`);
 });
 
 const express = require("express");
@@ -69,7 +80,9 @@ const auth = require("http-auth");
 const basic = auth.basic(
   { realm: "Monitor Area" },
   function (user, pass, callback) {
-    callback(user === "username" && pass === "password");
+    callback(
+      user === CONFIG.WEBSITE_USERNAME && pass === CONFIG.WEBSITE_PASSWORD
+    );
   }
 );
 
@@ -93,7 +106,7 @@ const Logger = {
   money: (msg) => console.log(chalk.green(`[MONEY]: ${msg}`)),
 };
 // List of available commands to automatically queue
-let AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes", "search"];
+let AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes", "search", "hunt"];
 // if (CONFIG.IS_FISHING_ENABLED) {
 //   //remove postmemes from the list of available commands if fishing is enabled
 //   AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
@@ -143,6 +156,8 @@ async function slashy(token) {
     inventory: [], // Inventory items
     lastStreamTimestamp: 0, // Timestamp of the last stream
     isStreamStillRunning: true, // Flag to indicate if the stream is still running
+    thingsToBuy: [], // Items to buy
+    latestBuyQuantity: 0, // Latest buy quantity
   };
 
   // Command management
@@ -241,8 +256,8 @@ async function slashy(token) {
       const moves = this.moves[square];
       if (success && moves) {
         for (const move of moves) {
-          await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-          await message.clickButton({ X: move, Y: 0 });
+          // await new Promise((r) => setTimeout(r, randomInt(100, 300)));
+          message.clickButton({ X: move, Y: 0 });
           if (move === moves[moves.length - 1]) {
             State.isBotBusy = false;
           }
@@ -355,6 +370,18 @@ async function slashy(token) {
     }
   }
   // Event handlers
+  client.on("interactionModalCreate", (modal) => {
+    if (modal.title == "Dank Memer Shop") {
+      modal.components[0].components[0].setValue(`${State.latestBuyQuantity}`);
+      modal.reply();
+      console.log(
+        chalk.cyan(
+          `${client.user.username}: Successfully bought an item (shovel/rifle)`
+        )
+      );
+    }
+  });
+
   client.on("ready", async () => {
     console.log(`[STARTUP] ${client.user.username} is ready!`);
 
@@ -451,6 +478,11 @@ async function slashy(token) {
       updateBucketSpace(message);
     }
 
+    //handle shop
+    if (message?.embeds[0]?.title?.includes("Dank Memer Shop")) {
+      handleShop(message);
+    }
+
     // Handle fishing cooldown
     if (message?.embeds[0]?.description?.includes("You can fish again")) {
       if (!CONFIG.IS_FISHING_ENABLED) return;
@@ -482,22 +514,25 @@ async function slashy(token) {
           "What game do you want to stream"
         )
       ) {
+        if (State.isBotBusy) return;
         const trendingGame = await fetch(
           `https://api.dankmemer.tools/trending`
         ).then((res) => res.text());
         const streamMenu = message.components[0].components[0];
-        const streamGame =
-          streamMenu.options.find(
-            (option) =>
-              option.label.replace(/\s/g, "").toLowerCase() ===
-              trendingGame.replace(/\s/g, "").toLowerCase()
-          ) ||
-          streamMenu.options[
-            Math.floor(Math.random() * streamMenu.options.length)
-          ];
-        await message.selectMenu(streamMenu, [streamGame.value]);
+        let streamGame = trendingGame.toLowerCase().replace(/ /g, "");
+        // use random menu item if streamGame is not found
+        if (!streamMenu.options.find((option) => option.value === streamGame)) {
+          streamGame =
+            streamMenu.options[
+              Math.floor(Math.random() * streamMenu.options.length)
+            ].value;
+        }
+        console.log(`[INFO] Streaming ${streamGame}`);
+        State.isBotBusy = true;
+        await message.selectMenu(streamMenu, [streamGame]);
         message.clickButton({ X: 0, Y: 1 });
 
+        State.isBotBusy = false;
         setTimeout(() => {
           message.clickButton({ X: randomInt(0, 2), Y: 0 });
           State.lastStreamTimestamp = Date.now();
@@ -550,6 +585,13 @@ async function slashy(token) {
       }
     });
 
+    // console.log(State.inventory);
+    // remove items from State.inventory that are not in the inventory message
+    // State.inventory = State.inventory.filter((item) =>
+    //   message.embeds[0].description.includes(item.name)
+    // );
+    // console.log(State.inventory);
+
     const [_, page, total] = message.embeds[0].footer.text
       .match(/Page (\d+) of (\d+)/)
       .map(Number);
@@ -558,9 +600,93 @@ async function slashy(token) {
       message.clickButton({ X: 2, Y: 1 });
     } else {
       State.isBotBusy = false;
+
+      // auto buy
+      CONFIG.AUTOBUY.forEach(({ item, quantity }) => {
+        // console.log(State.inventory);
+        const existingItem = State.inventory.find((i) =>
+          i.name.toLowerCase()?.includes(item.toLowerCase())
+        );
+        const buyQuantity = quantity - (existingItem?.quantity || 0);
+        if (buyQuantity > 0) {
+          State.thingsToBuy.push({ name: item, quantity: buyQuantity });
+          console.log(`[INFO] Adding ${buyQuantity} ${item}`);
+        }
+      });
+      if (State.thingsToBuy.length > 0) {
+        CommandManager.addCommand("shop view");
+      }
     }
   }
 
+  async function handleShop(message) {
+    let components = message.components[1].components;
+    let components2 = message.components[2].components;
+    // console.log(components);
+    // [
+    //   MessageButton {
+    //     type: 'BUTTON',
+    //     label: 'Buy Shovel',
+    //     customId: 'shop-buy:1235952897460535310:coin:0:0',
+    //     style: 'PRIMARY',
+    //     emoji: { id: '868263822035669002', name: 'IronShovel', animated: false },
+    //     url: null,
+    //     disabled: false
+    //   },
+    //   MessageButton {
+    //     type: 'BUTTON',
+    //     label: 'Buy Rifle',
+    //     customId: 'shop-buy:1235952897460535310:coin:0:1',
+    //     style: 'PRIMARY',
+    //     emoji: { id: '868286178070261760', name: 'LowRifle', animated: false },
+    //     url: null,
+    //     disabled: false
+    //   },
+    //   MessageButton {
+    //     type: 'BUTTON',
+    //     label: 'Buy Mouse',
+    //     customId: 'shop-buy:1235952897460535310:coin:0:2',
+    //     style: 'PRIMARY',
+    //     emoji: { id: '904821818425241600', name: 'Mouse', animated: false },
+    //     url: null,
+    //     disabled: false
+    //   }
+    // ]
+
+    //check if the item is either in components or components2
+    // if present, buy. if not present, click button with x =1,y=3
+
+    State.thingsToBuy.forEach((item) => {
+      const index = components.findIndex((comp) =>
+        comp.label
+          .toLowerCase()
+          .replace(/ /g, "")
+          .includes(item.name.toLowerCase().replace(/ /g, ""))
+      );
+      const index2 = components2.findIndex((comp) =>
+        comp.label
+          .toLowerCase()
+          .replace(/ /g, "")
+          .includes(item.name.toLowerCase().replace(/ /g, ""))
+      );
+
+      if (index > -1) {
+        message.clickButton({ X: index, Y: 1 });
+        State.latestBuyQuantity = item.quantity;
+      } else if (index2 > -1) {
+        message.clickButton({ X: index2, Y: 2 });
+        State.latestBuyQuantity = item.quantity;
+      } else {
+        const [_, currentPage, totalPages] = message.embeds[0].footer.text
+          .match(/Page (\d+) of (\d+)/)
+          .map(Number);
+        if (currentPage < totalPages) {
+          console.log(`Page ${currentPage} of ${totalPages}`);
+          message.clickButton({ X: 1, Y: 3 });
+        }
+      }
+    });
+  }
   async function handleNewMessage(message) {
     // Handle high-low game
     if (
@@ -580,7 +706,28 @@ async function slashy(token) {
 
     // auto stream
     if (message?.embeds[0]?.author?.name?.includes("Stream Manager")) {
-      await message.clickButton({ X: 0, Y: 0 });
+      if (
+        message.embeds[0]?.fields[1]?.value &&
+        message.components[0].components[2]
+      ) {
+        await message.clickButton({ X: randomInt(0, 2), Y: 0 });
+        State.lastStreamTimestamp = Date.now();
+
+        const interval = setInterval(() => {
+          if (Date.now() - State.lastStreamTimestamp > 1000 * 60 * 12) {
+            if (!State.isStreamStillRunning) clearInterval(interval);
+            message.clickButton({ X: randomInt(0, 2), Y: 0 });
+            State.lastStreamTimestamp = Date.now();
+          }
+        }, 20000);
+      } else {
+        await message.clickButton({ X: 0, Y: 0 });
+      }
+    }
+
+    // auto buy from shop
+    if (message?.embeds[0]?.title?.includes("Dank Memer Shop")) {
+      handleShop(message);
     }
 
     // scrape inventory
@@ -618,6 +765,7 @@ async function slashy(token) {
         State.isBotBusy = false;
       }
     }
+
     // Handle search locations
 
     if (message?.embeds[0]?.description?.includes("do you want to search")) {
@@ -643,10 +791,10 @@ async function slashy(token) {
       if (!fields) return;
       if (!CONFIG.IS_FISHING_ENABLED) return;
 
-      const [current, total] = fields
-        ?.match(/(\d+) \/ (\d+)/)
-        ?.slice(1)
-        ?.map(Number);
+      const match = fields.match(/(\d+) \/ (\d+)/);
+      if (!match) return;
+
+      const current = parseInt(match[1], 10);
       await new Promise((r) => setTimeout(r, randomInt(100, 300)));
 
       // Handle bucket actions based on capacity
