@@ -15,6 +15,12 @@ const CONFIG = {
   POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
   IS_FISHING_ENABLED: true, // Enable fishing minigame
   IS_STREAMING_ENABLED: true, // Enable streaming minigame
+  AUTOUSE: [
+    {
+      name: "Lucky Horseshoe",
+      time: 1000 * 60 * 15.5,
+    },
+  ],
   AUTOBUY: [
     {
       item: "Saver",
@@ -386,6 +392,13 @@ async function slashy(token) {
     console.log(`[STARTUP] ${client.user.username} is ready!`);
 
     CommandManager.addCommand("inventory");
+    // auto use
+    CONFIG.AUTOUSE.forEach(({ name, time }) => {
+      CommandManager.addCommand("use", [name]);
+      setInterval(() => {
+        CommandManager.addCommand("use", [name]);
+      }, time);
+    });
     if (CONFIG.IS_STREAMING_ENABLED) {
       CommandManager.addCommand("stream");
     }
