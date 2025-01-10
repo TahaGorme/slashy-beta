@@ -8,7 +8,7 @@ const CONFIG = {
   BOT_ID: "270904126974590976", // Discord bot ID to interact with
   PLAY_IN_DMS: false, // Play in DMs instead of server
   CHANNEL_ID: "796729044468367370", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
-  DEV_MODE: true, // Debug mode flag (set to true for additional logging)
+  DEV_MODE: false, // Debug mode flag (set to true for additional logging)
   WEBSITE_USERNAME: "slashy", // Website username
   WEBSITE_PASSWORD: "slashy", // Website
   API_ENDPOINT: "http://localhost:5000/predict", // API endpoint for image prediction
@@ -645,7 +645,8 @@ async function slashy(token) {
     }
     if (!description) return;
 
-    console.log(`[INFO] Adventure: ${description}`);
+    // console.log(`[INFO] Adventure: ${description}`);
+    if (description?.includes("You can start another adventure at ")) return;
 
     if (description?.includes("catch one of them")) {
       await message.clickButton({ X: randomInt(0, 2), Y: 0 });
@@ -855,7 +856,7 @@ async function slashy(token) {
     // adventure
     if (message?.embeds[0]?.author?.name?.includes("Choose an Adventure")) {
       await message.selectMenu(message.components[0].components[0], ["west"]);
-      if (!message.components[0].components[1].disabled) {
+      if (!message?.components[1]?.components[0]?.disabled) {
         await message.clickButton({ X: 0, Y: 1 });
       }
     }
@@ -933,7 +934,7 @@ async function slashy(token) {
       await new Promise((r) => setTimeout(r, randomInt(100, 300)));
 
       // Handle bucket actions based on capacity
-      if (current > 0) {
+      if (current > 5) {
         CommandManager.addCommand("fish buckets");
       } else {
         message.clickButton({ X: 2, Y: 0 });
