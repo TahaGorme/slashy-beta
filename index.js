@@ -304,9 +304,13 @@ async function slashy(token) {
     },
 
     async executeFailsafe(message) {
-      await message.clickButton({ X: 4, Y: 0 });
-      await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-      await message.clickButton({ X: 2, Y: 0 });
+      if (message.components[0].components[4]) {
+        await message.clickButton({ X: 4, Y: 0 });
+        await new Promise((r) => setTimeout(r, randomInt(100, 300)));
+        await message.clickButton({ X: 2, Y: 0 });
+      } else {
+        await message.clickButton({ X: 2, Y: 0 });
+      }
     },
   };
 
@@ -541,7 +545,9 @@ async function slashy(token) {
         "choose items you want to bring along"
       )
     ) {
+      State.isBotBusy = true;
       await message.clickButton({ X: 0, Y: 1 });
+      State.isBotBusy = false;
     }
 
     // handle adventure
@@ -632,7 +638,7 @@ async function slashy(token) {
   async function handleAdventure(message) {
     let description = message.embeds[0].description;
 
-    if (message.embeds[0].author.name.includes("Adventure Summary")) {
+    if (message?.embeds[0]?.author?.name.includes("Adventure Summary")) {
       //get label of button
       let buttonLabel = message.components[0].components[0].label;
       //Adventure again in 22 minute
