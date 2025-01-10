@@ -193,6 +193,11 @@ async function slashy(token) {
     thingsToBuy: [], // Items to buy
     latestBuyQuantity: 0, // Latest buy quantity
     streamingFlag: false,
+    lastButtonClick: undefined,
+    lastButtonClickTimestamp: 0,
+    lastUsedCommand: undefined,
+    lastUsedCommandOptions: undefined,
+    lastCommandTimestamp: 0,
   };
 
   // Command management
@@ -234,6 +239,11 @@ async function slashy(token) {
           command.name,
           ...(command.options || [])
         );
+        State.lastUsedCommand = command.name;
+        State.lastUsedCommandOptions = command.options;
+        State.lastCommandTimestamp = Date.now();
+
+
 
         this.cooldowns[command.name] =
           Date.now() + (CONFIG.COOLDOWNS[command.name] || 2500);
@@ -292,7 +302,8 @@ async function slashy(token) {
       if (success && moves) {
         for (const move of moves) {
           // await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-          await message.clickButton({ X: move, Y: 0 });
+          // await message.clickButton({ X: move, Y: 0 });
+          await clickButton(message, move, 0);
           if (move === moves[moves.length - 1]) {
             State.isBotBusy = false;
           }
@@ -305,11 +316,14 @@ async function slashy(token) {
 
     async executeFailsafe(message) {
       if (message.components[0].components[4]) {
-        await message.clickButton({ X: 4, Y: 0 });
+        // await message.clickButton({ X: 4, Y: 0 });
+        await clickButton(message, 4, 0);
         await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-        await message.clickButton({ X: 2, Y: 0 });
+        // await message.clickButton({ X: 2, Y: 0 });
+        await clickButton(message, 2, 0);
       } else {
-        await message.clickButton({ X: 2, Y: 0 });
+        // await message.clickButton({ X: 2, Y: 0 });
+        await clickButton(message, 2, 0);
       }
     },
   };
@@ -330,7 +344,8 @@ async function slashy(token) {
       const secretNumber = parseInt(
         message.embeds[0].description.match(/\*\*(\d+)\*\*/)[1]
       );
-      await message.clickButton({ X: secretNumber > 50 ? 0 : 2, Y: 0 });
+      // await message.clickButton({ X: secretNumber > 50 ? 0 : 2, Y: 0 });
+      await clickButton(message, secretNumber > 50 ? 0 : 2, 0);
     } catch (error) {
       console.error("[ERROR] High-low game failed:", error);
     }
@@ -340,7 +355,8 @@ async function slashy(token) {
   async function handleBucketView(message) {
     try {
       await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-      await message.clickButton({ X: 1, Y: 1 });
+      // await message.clickButton({ X: 1, Y: 1 });
+      await clickButton(message, 1, 1);
 
       const fields = message.embeds[0]?.fields[3]?.value;
       if (!fields) return;
@@ -355,7 +371,8 @@ async function slashy(token) {
       if (current > 0) {
         await CommandManager.addCommand("fish buckets");
       } else {
-        await message.clickButton({ X: 2, Y: 0 });
+        // await message.clickButton({ X: 2, Y: 0 });
+        await clickButton(message, 2, 0);
       }
     } catch (error) {
       console.error("[ERROR] Bucket view handling failed:", error);
@@ -381,7 +398,8 @@ async function slashy(token) {
       await new Promise((r) => setTimeout(r, diff));
 
       if (State.bucketSpace < State.maxBucketSpace) {
-        await message.clickButton({ X: 1, Y: 0 });
+        // await message.clickButton({ X: 1, Y: 0 });
+        await clickButton(message, 1, 0);
       } else {
         await CommandManager.addCommand("fish buckets");
       }
@@ -399,7 +417,8 @@ async function slashy(token) {
     try {
       if (!CONFIG.IS_FISHING_ENABLED) return;
       State.isSelling = true;
-      await message.clickButton({ X: 1, Y: 0 });
+      // await message.clickButton({ X: 1, Y: 0 });
+      await clickButton(message, 1, 0);
       console.log("[INFO] Selling fish");
       await CommandManager.addCommand("fish catch");
     } catch (error) {
@@ -477,6 +496,27 @@ async function slashy(token) {
   });
 
   client.on("messageCreate", async (message) => {
+    if (message?.flags?.has("EPHEMERAL")) {
+      //if title includes Tight
+      if (message.embeds[0]?.title?.includes("Tight")) {
+        let lastClickedButton = State.lastButtonClick;
+        let lastClickedTimestamp = State.lastButtonClickTimestamp;
+        let lastCommand = State.lastUsedCommand;
+        let lastCommandOptions = State.lastUsedCommandOptions;
+        let lastCommandTimestamp = State.lastCommandTimestamp;
+
+        //which was last clicked - button or command
+        if (lastClickedTimestamp > lastCommandTimestamp) {
+          //last clicked button
+          await clickButton(lastClickedButton);
+
+        } else {
+          //last used command
+          await CommandManager.addCommand(lastCommand, lastCommandOptions);
+        }
+      }
+
+    }
     if (
       message.author.id !== CONFIG.BOT_ID ||
       message?.interaction?.user !== client?.user
@@ -546,7 +586,8 @@ async function slashy(token) {
       )
     ) {
       State.isBotBusy = true;
-      await message.clickButton({ X: 0, Y: 1 });
+      // await message.clickButton({ X: 0, Y: 1 });
+      await clickButton(message, 0, 1);
       State.isBotBusy = false;
     }
 
@@ -596,13 +637,15 @@ async function slashy(token) {
         State.streamingFlag = true;
         State.isBotBusy = true;
         await message.selectMenu(streamMenu, [streamGame]);
-        await message.clickButton({ X: 0, Y: 1 });
+        // await message.clickButton({ X: 0, Y: 1 });
+        await clickButton(message, 0, 1);
 
         State.streamingFlag = false;
         State.isBotBusy = false;
 
         setTimeout(() => {
-          message.clickButton({ X: randomInt(0, 2), Y: 0 });
+          // message.clickButton({ X: randomInt(0, 2), Y: 0 });
+          clickButton(message, randomInt(0, 2), 0);
           State.lastStreamTimestamp = Date.now();
         }, 1000 * randomInt(15, 30));
 
@@ -611,7 +654,8 @@ async function slashy(token) {
             if (!State.isStreamStillRunning) {
               clearInterval(interval);
             }
-            message.clickButton({ X: randomInt(0, 2), Y: 0 });
+            // message.clickButton({ X: randomInt(0, 2), Y: 0 });
+            clickButton(message, randomInt(0, 2), 0);
             State.lastStreamTimestamp = Date.now();
           }
         }, 20000);
@@ -654,13 +698,17 @@ async function slashy(token) {
     // console.log(`[INFO] Adventure: ${description}`);
     if (description?.includes("You can start another adventure at ")) return;
 
-    if (description?.includes("catch one of them")) {
-      await message.clickButton({ X: randomInt(0, 2), Y: 0 });
-      return message.clickButton({ X: 1, Y: 1 });
+    if (description?.includes("Catch one of em")) {
+      // await message.clickButton({ X: randomInt(0, 2), Y: 0 });
+      // await message.clickButton({ X: 1, Y: 1 });
+      await clickButton(message, randomInt(0, 2), 0);
+      await clickButton(message, 1, 1);
+      return;
     }
 
     if (!message.components[1]) {
-      return message.clickButton({ X: 1, Y: 0 });
+      // return message.clickButton({ X: 1, Y: 0 });
+      return clickButton(message, 1, 0);
     }
 
     //check description from CONFIG.ADVENTURE_WEST
@@ -679,8 +727,10 @@ async function slashy(token) {
       });
 
       console.log(`[INFO] Button index: ${buttonIndex}`);
-      await message.clickButton({ X: buttonIndex, Y: 0 });
-      await message.clickButton({ X: 1, Y: 1 });
+      // await message.clickButton({ X: buttonIndex, Y: 0 });
+      // await message.clickButton({ X: 1, Y: 1 });
+      await clickButton(message, buttonIndex, 0);
+      await clickButton(message, 1, 1);
     }
   }
   async function handleInventory(message) {
@@ -713,7 +763,8 @@ async function slashy(token) {
       .map(Number);
     console.log(`[INFO] Inventory page ${page} of ${total}`);
     if (page < total) {
-      message.clickButton({ X: 2, Y: 1 });
+      // message.clickButton({ X: 2, Y: 1 });
+      clickButton(message, 2, 1);
     } else {
       State.isBotBusy = false;
 
@@ -788,17 +839,20 @@ async function slashy(token) {
 
       if (index > -1) {
         State.latestBuyQuantity = item.quantity;
-        message.clickButton({ X: index, Y: 1 });
+        // message.clickButton({ X: index, Y: 1 });
+        clickButton(message, index, 1);
       } else if (index2 > -1) {
         State.latestBuyQuantity = item.quantity;
-        message.clickButton({ X: index2, Y: 2 });
+        // message.clickButton({ X: index2, Y: 2 });
+        clickButton(message, index2, 2);
       } else {
         const [_, currentPage, totalPages] = message.embeds[0].footer.text
           .match(/Page (\d+) of (\d+)/)
           .map(Number);
         if (currentPage < totalPages) {
           console.log(`Page ${currentPage} of ${totalPages}`);
-          message.clickButton({ X: 1, Y: 3 });
+          // message.clickButton({ X: 1, Y: 3 });
+          clickButton(message, 1, 3);
         }
       }
     });
@@ -826,19 +880,22 @@ async function slashy(token) {
         message.embeds[0]?.fields[1]?.value &&
         message.components[0].components[2]
       ) {
-        await message.clickButton({ X: randomInt(0, 2), Y: 0 });
+        // await message.clickButton({ X: randomInt(0, 2), Y: 0 });
+        await clickButton(message, randomInt(0, 2), 0);
         State.lastStreamTimestamp = Date.now();
 
         const interval = setInterval(async () => {
           if (Date.now() - State.lastStreamTimestamp > 1000 * 60 * 12) {
             if (!State.isStreamStillRunning) clearInterval(interval);
-            await message.clickButton({ X: randomInt(0, 2), Y: 0 });
+            // await message.clickButton({ X: randomInt(0, 2), Y: 0 });
+            await clickButton(message, randomInt(0, 2), 0);
             State.lastStreamTimestamp = Date.now();
             console.log("[INFO] Stream is still running");
           }
         }, 20000);
       } else {
-        await message.clickButton({ X: 0, Y: 0 });
+        // await message.clickButton({ X: 0, Y: 0 });
+        await clickButton(message, 0, 0);
       }
     }
 
@@ -863,7 +920,8 @@ async function slashy(token) {
     if (message?.embeds[0]?.author?.name?.includes("Choose an Adventure")) {
       await message.selectMenu(message.components[0].components[0], ["west"]);
       if (!message?.components[1]?.components[0]?.disabled) {
-        await message.clickButton({ X: 0, Y: 1 });
+        // await message.clickButton({ X: 0, Y: 1 });
+        await clickButton(message, 0, 1);
       }
     }
 
@@ -895,12 +953,13 @@ async function slashy(token) {
         const Platform = CONFIG.POST_MEMES_PLATFORMS.includes("RANDOM")
           ? selectRandomOption(PlatformMenu)
           : CONFIG.POST_MEMES_PLATFORMS[
-              Math.floor(Math.random() * CONFIG.POST_MEMES_PLATFORMS.length)
-            ];
+          Math.floor(Math.random() * CONFIG.POST_MEMES_PLATFORMS.length)
+          ];
 
         message.selectMenu(PlatformMenu, [Platform]);
         message.selectMenu(MemeTypeMenu, [selectRandomOption(MemeTypeMenu)]);
-        message.clickButton({ X: 0, Y: 2 });
+        // message.clickButton({ X: 0, Y: 2 });
+        clickButton(message, 0, 2);
       } catch (e) {
         Logger.error(`Failed to post meme: ${e.message}`);
       } finally {
@@ -921,7 +980,8 @@ async function slashy(token) {
       const index = location
         ? labels.indexOf(location.toLowerCase())
         : randomInt(0, labels.length - 1);
-      message.clickButton({ X: index, Y: 0 });
+      // message.clickButton({ X: index, Y: 0 });
+      clickButton(message, index, 0);
     }
     // Handle bucket management
     if (message?.embeds[0]?.title?.includes("Viewing Bucket Slots")) {
@@ -943,11 +1003,18 @@ async function slashy(token) {
       if (current > 5) {
         CommandManager.addCommand("fish buckets");
       } else {
-        message.clickButton({ X: 2, Y: 0 });
+        // message.clickButton({ X: 2, Y: 0 });
+        clickButton(message, 2, 0);
       }
     }
   }
 
   // Secure login using environment variable
   client.login(token);
+  async function clickButton(message, x, y) {
+    await message.clickButton({ X: x, Y: y });
+    let button = message.components[y].components[x];
+    State.lastButtonClick = button;
+    State.lastButtonClickTimestamp = Date.now();
+  }
 }
