@@ -5,17 +5,19 @@ const fs = require("fs");
 const axios = require("axios");
 const path = require("path");
 const FormData = require("form-data");
+const { connect } = require("puppeteer-real-browser");
+
 // Configuration object
 const CONFIG = {
   BOT_ID: "270904126974590976", // Discord bot ID to interact with
-  PLAY_IN_DMS: true, // Play in DMs instead of server
-  CHANNEL_ID: "", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
+  PLAY_IN_DMS: false, // Play in DMs instead of server
+  CHANNEL_ID: "796729044468367370", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
   DEV_MODE: false, // Debug mode flag (set to true for additional logging)
   WEBSITE_USERNAME: "slashy", // Website username
   WEBSITE_PASSWORD: "slashy", // Website
   API_ENDPOINT: "http://localhost:6000/predict", // API endpoint for image prediction
   POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
-  IS_FISHING_ENABLED: true, // Enable fishing minigame
+  IS_FISHING_ENABLED: false, // Enable fishing minigame
   IS_STREAMING_ENABLED: true, // Enable streaming minigame
   IS_ADVENTURE_ENABLED: true, // Enable adventure minigame
   AUTOUSE: [
@@ -43,32 +45,14 @@ const CONFIG = {
   COOLDOWNS: {
     highlow: 2000,
     beg: 10000,
-    crime: 30000,
+    crime: 2000,
     postmemes: 2000,
     search: 2000,
     hunt: 10000,
-    dig:10000
+    dig: 10000,
   },
-  SEARCH_LOCATIONS: [
-    "Basement",
-    "Bus",
-    "Car",
-    "Coat",
-    "Computer",
-    "Dresser",
-    "Fridge",
-    "Grass",
-    "Laundromat",
-    "Mailbox",
-    "Pantry",
-    "Pocket",
-    "Shoe",
-    "Sink",
-    "Supreme Court",
-    "Twitter",
-    "Vacuum",
-    "Washer",
-  ],
+
+  SEARCH_LOCATIONS: ["Basement"],
   ADVENTURE_WEST: {
     "A lady next to a broken down wagon is yelling for help.": "Ignore Her",
     "A snake is blocking your path. What do you want to do?": "Wait",
@@ -143,7 +127,15 @@ const Logger = {
   money: (msg) => console.log(chalk.green(`[MONEY]: ${msg}`)),
 };
 // List of available commands to automatically queue
-let AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes", "search", "hunt","dig"];
+let AVAILABLE_COMMANDS = [
+  "highlow",
+  "beg",
+  "postmemes",
+  "search",
+  "hunt",
+  "dig",
+  "crime",
+];
 // if (CONFIG.IS_FISHING_ENABLED) {
 //   //remove postmemes from the list of available commands if fishing is enabled
 //   AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
@@ -246,8 +238,6 @@ async function slashy(token) {
         State.lastUsedCommandOptions = command.options;
         State.lastCommandTimestamp = Date.now();
 
-
-
         this.cooldowns[command.name] =
           Date.now() + (CONFIG.COOLDOWNS[command.name] || 2500);
       } catch (error) {
@@ -257,7 +247,7 @@ async function slashy(token) {
       }
     },
   };
-  const moves = JSON.parse(fs.readFileSync('moves.json', 'utf-8'));
+  const moves = JSON.parse(fs.readFileSync("moves.json", "utf-8"));
 
   // Fishing game handler
   const FishingGame = {
@@ -282,13 +272,15 @@ async function slashy(token) {
     async getPrediction(image) {
       State.isBotBusy = true;
       const startTime = Date.now();
-      const imageResponse = await axios.get(image, { responseType: "arraybuffer" });
+      const imageResponse = await axios.get(image, {
+        responseType: "arraybuffer",
+      });
       const imagePath = path.join(__dirname, "fishy.png");
       fs.writeFileSync(imagePath, imageResponse.data);
 
       const apiStartTime = Date.now();
       const formData = new FormData();
-      formData.append('image', fs.createReadStream(imagePath));
+      formData.append("image", fs.createReadStream(imagePath));
 
       const response = await axios.post(CONFIG.API_ENDPOINT, formData, {
         headers: formData.getHeaders(),
@@ -296,7 +288,9 @@ async function slashy(token) {
 
       const apiEndTime = Date.now();
       const apiTimeTaken = (apiEndTime - apiStartTime) / 1000;
-      console.log(`${client.user.username}: API response took ${apiTimeTaken} seconds.`);
+      console.log(
+        `${client.user.username}: API response took ${apiTimeTaken} seconds.`
+      );
       console.log(`${client.user.username}: API response:`, response.data);
 
       if (response.status !== 200) {
@@ -325,13 +319,18 @@ async function slashy(token) {
       });
 
       if (!rodPosition || !latestFishingSpot) {
-        throw new Error("Required positions (Hand, Fishing Rod, or Fishing Spot) not found in the API response.");
+        throw new Error(
+          "Required positions (Hand, Fishing Rod, or Fishing Spot) not found in the API response."
+        );
       }
 
       return { rodPosition, latestFishingSpot, seaBombPosition };
     },
 
-    async executeMoves(message, { rodPosition, latestFishingSpot, seaBombPosition }) {
+    async executeMoves(
+      message,
+      { rodPosition, latestFishingSpot, seaBombPosition }
+    ) {
       const key = `${latestFishingSpot}-${seaBombPosition}`;
       const moveSet = moves[key];
       if (moveSet) {
@@ -529,7 +528,7 @@ async function slashy(token) {
     await handleMessageUpdate(message);
   });
 
-  client.on("messageCreate", async (message) => {
+  client.on("ite", async (message) => {
     if (message?.flags?.has("EPHEMERAL")) {
       //if title includes Tight
       if (message.embeds[0]?.title?.includes("Tight")) {
@@ -543,13 +542,82 @@ async function slashy(token) {
         if (lastClickedTimestamp > lastCommandTimestamp) {
           //last clicked button
           await clickButton(lastClickedButton);
-
         } else {
           //last used command
           await CommandManager.addCommand(lastCommand, lastCommandOptions);
         }
       }
 
+      if (message.embeds[0]?.title?.includes("Captcha")) {
+        State.isBotBusy = true;
+        const { browser, page } = await connect({
+          headless: "new",
+
+          args: [],
+
+          customConfig: {},
+
+          turnstile: true,
+
+          connectOption: {},
+
+          disableXvfb: false,
+          ignoreAllFlags: false,
+          // proxy:{
+          //     host:'<proxy-host>',
+          //     port:'<proxy-port>',
+          //     username:'<proxy-username>',
+          //     password:'<proxy-password>'
+          // }
+        });
+
+        fetch(
+          "https://discord.com/api/v9/oauth2/authorize?client_id=270904126974590976&response_type=code&redirect_uri=https%3A%2F%2Fdankmemer.lol%2Fapi%2Fauth%2Fcallback&scope=identify&state=redirect%3A%2F",
+          {
+            headers: {
+              accept: "*/*",
+              "accept-language": "en-US,en;q=0.9",
+              authorization: client.token,
+              "content-type": "application/json",
+              priority: "u=1, i",
+              "sec-ch-ua":
+                '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+              "sec-ch-ua-mobile": "?1",
+              "sec-ch-ua-platform": '"Android"',
+              "sec-fetch-dest": "empty",
+              "sec-fetch-mode": "cors",
+              "sec-fetch-site": "same-origin",
+              "x-debug-options": "bugReporterEnabled",
+              "x-discord-locale": "ru",
+              "x-discord-timezone": "Asia/Calcutta",
+              "x-super-properties":
+                "eyJvcyI6IkxpbnV4IiwiYnJvd3NlciI6IkNocm9tZSIsImRldmljZSI6IiIsInN5c3RlbV9sb2NhbGUiOiJlbi1VUyIsImhhc19jbGllbnRfbW9kcyI6ZmFsc2UsImJyb3dzZXJfdXNlcl9hZ2VudCI6Ik1vemlsbGEvNS4wIChMaW51eDsgQW5kcm9pZCA2LjA7IE5leHVzIDUgQnVpbGQvTVJBNThOKSBBcHBsZVdlYktpdC81MzcuMzYgKEtIVE1MLCBsaWtlIEdlY2tvKSBDaHJvbWUvMTMxLjAuMC4wIE1vYmlsZSBTYWZhcmkvNTM3LjM2IiwiYnJvd3Nlcl92ZXJzaW9uIjoiMTMxLjAuMC4wIiwib3NfdmVyc2lvbiI6IjYuMCIsInJlZmVycmVyIjoiIiwicmVmZXJyaW5nX2RvbWFpbiI6IiIsInJlZmVycmVyX2N1cnJlbnQiOiJodHRwczovL2RhbmttZW1lci5sb2wvIiwicmVmZXJyaW5nX2RvbWFpbl9jdXJyZW50IjoiZGFua21lbWVyLmxvbCIsInJlbGVhc2VfY2hhbm5lbCI6InN0YWJsZSIsImNsaWVudF9idWlsZF9udW1iZXIiOjM1ODAxMSwiY2xpZW50X2V2ZW50X3NvdXJjZSI6bnVsbH0=",
+              cookie:
+                "__dcfduid=2ba65270c8de11efa7fbf93da55b3963; __sdcfduid=2ba65271c8de11efa7fbf93da55b3963ad540586ca4461e314f4af020b3552054438dba407fe6d53923b670ab655780a; __stripe_mid=e4d11e89-e86f-454c-8341-203deb5fd23b155b5c; locale=ru; cf_clearance=g4bB5qnbBQeeR9vRc9cYL2kFGaEP11_RYgi9RDzo9kY-1736567229-1.2.1.1-IetqfKfacPeXkhMuAQbRegvxWcIkmJ20yUH1PCJ9Vua1MOgvvu1gDfexfb8AkUVVZKfYGuOqkf0ihy16OZgOSH0p9qPlAL9WMMdQTmzfCPvW1hPmRNrZNJgIwN1A9Vks9IKLqVPkDSad.yeoNIciDtOtEPiotsTT95j9TGXBNxS_Q77g5_Xp0awV0.rVER5RFOa7m3Su72UMb6afHzxP4J8XsW_O9_sQae21t.VnMbkbUGnCEde0Iy6yNHdfy.SJP3TTCNEXuKxEKqv.u.WIYfXuLwu72otZCfDZJArIomY; __cfruid=bda21e5167f72b3502fa7f0a0c9178e995aa60dd-1736567230; _cfuvid=GJnji8y2quoT8P5_1Xrf7s4H1c_gmnPjN16d22zJdTA-1736567230082-0.0.1.1-604800000",
+              Referer:
+                "https://discord.com/oauth2/authorize?response_type=code&client_id=270904126974590976&redirect_uri=https%3A%2F%2Fdankmemer.lol%2Fapi%2Fauth%2Fcallback&scope=identify&state=redirect%3A%2F",
+              "Referrer-Policy": "strict-origin-when-cross-origin",
+            },
+            body: '{"guild_id":"793599889971740694","permissions":"0","authorize":true,"integration_type":0,"location_context":{"guild_id":"10000","channel_id":"10000","channel_type":10000}}',
+            method: "POST",
+          }
+        )
+          .then((response) => response.json())
+          .then(async (data) => {
+            console.log(data);
+
+            let url = data.location;
+            //set view port
+            await page.setViewport({ width: 1920, height: 1080 });
+            await page.goto(url);
+            await page.goto("https://dankmemer.lol/captcha");
+            setTimeout(async () => {
+              await browser.close();
+              State.isBotBusy = false;
+            }, 15000);
+          })
+          .catch((err) => console.error(err));
+      }
     }
     if (
       message.author.id !== CONFIG.BOT_ID ||
@@ -607,7 +675,10 @@ async function slashy(token) {
     }
 
     // Handle fishing cooldown
-    if (message?.embeds[0]?.description?.includes("You can fish again") || message?.embeds[0]?.title?.includes("There was nothing")) {
+    if (
+      message?.embeds[0]?.description?.includes("You can fish again") ||
+      message?.embeds[0]?.title?.includes("There was nothing")
+    ) {
       if (!CONFIG.IS_FISHING_ENABLED) return;
       State.lastFishTimestamp = Date.now();
       await handleFishingCooldown(message);
@@ -763,7 +834,7 @@ async function slashy(token) {
       console.log(`[INFO] Button index: ${buttonIndex}`);
       // await message.clickButton({ X: buttonIndex, Y: 0 });
       // await message.clickButton({ X: 1, Y: 1 });
-    try {
+      try {
         await clickButton(message, buttonIndex, 0);
         await clickButton(message, 1, 1);
       } catch (e) {
@@ -993,8 +1064,8 @@ async function slashy(token) {
         const Platform = CONFIG.POST_MEMES_PLATFORMS.includes("RANDOM")
           ? selectRandomOption(PlatformMenu)
           : CONFIG.POST_MEMES_PLATFORMS[
-          Math.floor(Math.random() * CONFIG.POST_MEMES_PLATFORMS.length)
-          ];
+              Math.floor(Math.random() * CONFIG.POST_MEMES_PLATFORMS.length)
+            ];
 
         message.selectMenu(PlatformMenu, [Platform]);
         message.selectMenu(MemeTypeMenu, [selectRandomOption(MemeTypeMenu)]);
@@ -1007,6 +1078,16 @@ async function slashy(token) {
       }
     }
 
+    // handle crime
+    //What crime do you want to commit
+    if (
+      message?.embeds[0]?.description?.includes(
+        "What crime do you want to commit"
+      )
+    ) {
+      // await message.clickButton({ X: 0, Y: 0 });
+      clickButton(message, randomInt(0, 2), 0);
+    }
     // Handle search locations
 
     if (message?.embeds[0]?.description?.includes("do you want to search")) {
