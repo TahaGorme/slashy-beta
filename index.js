@@ -8,14 +8,14 @@ const FormData = require("form-data");
 // Configuration object
 const CONFIG = {
   BOT_ID: "270904126974590976", // Discord bot ID to interact with
-  PLAY_IN_DMS: true, // Play in DMs instead of server
-  CHANNEL_ID: "", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
+  PLAY_IN_DMS: false, // Play in DMs instead of server
+  CHANNEL_ID: "796729044468367370", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
   DEV_MODE: false, // Debug mode flag (set to true for additional logging)
   WEBSITE_USERNAME: "slashy", // Website username
   WEBSITE_PASSWORD: "slashy", // Website
   API_ENDPOINT: "http://localhost:6000/predict", // API endpoint for image prediction
   POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
-  IS_FISHING_ENABLED: true, // Enable fishing minigame
+  IS_FISHING_ENABLED: false, // Enable fishing minigame
   IS_STREAMING_ENABLED: true, // Enable streaming minigame
   IS_ADVENTURE_ENABLED: true, // Enable adventure minigame
   AUTOUSE: [
@@ -43,7 +43,7 @@ const CONFIG = {
   COOLDOWNS: {
     highlow: 2000,
     beg: 10000,
-    crime: 30000,
+    crime: 10000,
     postmemes: 2000,
     search: 2000,
     hunt: 10000,
@@ -150,6 +150,7 @@ let AVAILABLE_COMMANDS = [
   "search",
   "hunt",
   "dig",
+  "crime",
 ];
 // if (CONFIG.IS_FISHING_ENABLED) {
 //   //remove postmemes from the list of available commands if fishing is enabled
@@ -820,8 +821,14 @@ async function slashy(token) {
     if (description?.includes("Catch one of em")) {
       // await message.clickButton({ X: randomInt(0, 2), Y: 0 });
       // await message.clickButton({ X: 1, Y: 1 });
-      await clickButton(message, randomInt(0, 2), 0);
-      await clickButton(message, 1, 1);
+      try {
+        await clickButton(message, randomInt(0, 2), 0);
+        await clickButton(message, 1, 1);
+      } catch (e) {
+        await clickButton(message, 1, 1);
+
+        console.log(e);
+      }
       return;
     }
 
@@ -1090,6 +1097,9 @@ async function slashy(token) {
       } finally {
         State.isBotBusy = false;
       }
+    }
+    if (message?.embeds[0]?.description?.includes("What crime")) {
+      clickButton(message, randomInt(0, 2), 0);
     }
 
     // Handle search locations
