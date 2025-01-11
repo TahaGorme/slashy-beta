@@ -19,7 +19,8 @@ const CONFIG = {
   IS_STREAMING_ENABLED: true, // Enable streaming minigame
   IS_ADVENTURE_ENABLED: true, // Enable adventure minigame
   BUCKET_LIMIT: 0, // Maximum bucket space,
-  LOGINDELAY: 3000,
+  LOGIN_DELAY_MIN: 4000, // Minimum delay between logins
+  LOGIN_DELAY_MAX: 8000, // Maximum delay between logins
   AUTOUSE: [
     {
       name: "Lucky Horseshoe",
@@ -158,15 +159,26 @@ let AVAILABLE_COMMANDS = [
 //   //remove postmemes from the list of available commands if fishing is enabled
 //   AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
 // }
-const tokens = process.env.tokens ? process.env.tokens.split("\n") : fs.readFileSync("tokens.txt", "utf-8").split("\n");
+function randomInt1(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
-tokens.forEach((token) => {
-  i++;
-  setTimeout(() => {
-    if (!token.trim().split(" ")[1]) start(token.trim().split(" ")[0]);
-    else slashy(token.trim().split(" ")[1], token.trim().split(" ")[0]);
-  }, i * CONFIG.LOGIN_DELAY);
-})
+async function processTokens() {
+  const tokens = fs.readFileSync("tokens.txt", "utf-8")
+    .split("\n")
+    .map(token => token.trim())
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    console.log(`Logging in with token: ${token}`);
+    slashy(token);
+
+    // Wait 1-3 seconds before next token
+    await new Promise(resolve => setTimeout(resolve, randomInt1(CONFIG.LOGIN_DELAY_MIN, CONFIG.LOGIN_DELAY_MAX)));
+  }
+}
+
+processTokens().catch(console.error);
 
 
 async function slashy(token) {
