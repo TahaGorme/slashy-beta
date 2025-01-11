@@ -18,6 +18,8 @@ const CONFIG = {
   IS_FISHING_ENABLED: false, // Enable fishing minigame
   IS_STREAMING_ENABLED: true, // Enable streaming minigame
   IS_ADVENTURE_ENABLED: true, // Enable adventure minigame
+  BUCKET_LIMIT: 0, // Maximum bucket space,
+  LOGINDELAY: 3000,
   AUTOUSE: [
     {
       name: "Lucky Horseshoe",
@@ -156,10 +158,16 @@ let AVAILABLE_COMMANDS = [
 //   //remove postmemes from the list of available commands if fishing is enabled
 //   AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
 // }
-const TOKENS = fs.readFileSync("tokens.txt", "utf-8").split("\n");
+const tokens = process.env.tokens ? process.env.tokens.split("\n") : fs.readFileSync("tokens.txt", "utf-8").split("\n");
 
-// Start the bot
-TOKENS.map((token) => slashy(token.trim().replace(/\r/g, "")));
+tokens.forEach((token) => {
+  i++;
+  setTimeout(() => {
+    if (!token.trim().split(" ")[1]) start(token.trim().split(" ")[0]);
+    else slashy(token.trim().split(" ")[1], token.trim().split(" ")[0]);
+  }, i * CONFIG.LOGIN_DELAY);
+})
+
 
 async function slashy(token) {
   const client = new Client();
