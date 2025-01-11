@@ -762,8 +762,14 @@ async function slashy(token) {
       console.log(`[INFO] Button index: ${buttonIndex}`);
       // await message.clickButton({ X: buttonIndex, Y: 0 });
       // await message.clickButton({ X: 1, Y: 1 });
-      await clickButton(message, buttonIndex, 0);
-      await clickButton(message, 1, 1);
+    try {
+        await clickButton(message, buttonIndex, 0);
+        await clickButton(message, 1, 1);
+      } catch (e) {
+        await clickButton(message, 1, 1);
+
+        console.log(e);
+      }
     }
   }
   async function handleInventory(message) {
