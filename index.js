@@ -1,5 +1,6 @@
 // Import required modules
 const { Client } = require("discord.js-selfbot-v13");
+const { connect } = require('puppeteer-real-browser');
 const chalk = require("chalk");
 const fs = require("fs");
 const axios = require("axios");
