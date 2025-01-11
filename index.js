@@ -47,6 +47,7 @@ const CONFIG = {
     postmemes: 2000,
     search: 2000,
     hunt: 10000,
+    dig:10000
   },
   SEARCH_LOCATIONS: [
     "Basement",
@@ -142,7 +143,7 @@ const Logger = {
   money: (msg) => console.log(chalk.green(`[MONEY]: ${msg}`)),
 };
 // List of available commands to automatically queue
-let AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes", "search", "hunt"];
+let AVAILABLE_COMMANDS = ["highlow", "beg", "postmemes", "search", "hunt","dig"];
 // if (CONFIG.IS_FISHING_ENABLED) {
 //   //remove postmemes from the list of available commands if fishing is enabled
 //   AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
