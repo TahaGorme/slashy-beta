@@ -2,16 +2,18 @@
 const { Client } = require("discord.js-selfbot-v13");
 const chalk = require("chalk");
 const fs = require("fs");
-
+const axios = require("axios");
+const path = require("path");
+const FormData = require("form-data");
 // Configuration object
 const CONFIG = {
   BOT_ID: "270904126974590976", // Discord bot ID to interact with
-  PLAY_IN_DMS: false, // Play in DMs instead of server
-  CHANNEL_ID: "796729044468367370", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
+  PLAY_IN_DMS: true, // Play in DMs instead of server
+  CHANNEL_ID: "", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
   DEV_MODE: false, // Debug mode flag (set to true for additional logging)
   WEBSITE_USERNAME: "slashy", // Website username
   WEBSITE_PASSWORD: "slashy", // Website
-  API_ENDPOINT: "http://localhost:5000/predict", // API endpoint for image prediction
+  API_ENDPOINT: "http://localhost:6000/predict", // API endpoint for image prediction
   POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
   IS_FISHING_ENABLED: true, // Enable fishing minigame
   IS_STREAMING_ENABLED: true, // Enable streaming minigame
@@ -254,21 +256,10 @@ async function slashy(token) {
       }
     },
   };
+  const moves = JSON.parse(fs.readFileSync('moves.json', 'utf-8'));
 
   // Fishing game handler
   const FishingGame = {
-    // Moves for each square
-    moves: {
-      1: [0, 1, 1, 2],
-      2: [1, 1, 2],
-      3: [4, 1, 1, 2],
-      4: [0, 1, 2],
-      5: [1, 2],
-      6: [4, 1, 2],
-      7: [0, 2],
-      9: [4, 2],
-    },
-
     async handleMinigame(message, image) {
       // Prevent execution if the bot is already fishing or the image is missing
       if (!image || State.isFishing) return;
@@ -289,40 +280,82 @@ async function slashy(token) {
 
     async getPrediction(image) {
       State.isBotBusy = true;
-      const response = await fetch(CONFIG.API_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: image }),
+      const startTime = Date.now();
+      const imageResponse = await axios.get(image, { responseType: "arraybuffer" });
+      const imagePath = path.join(__dirname, "fishy.png");
+      fs.writeFileSync(imagePath, imageResponse.data);
+
+      const apiStartTime = Date.now();
+      const formData = new FormData();
+      formData.append('image', fs.createReadStream(imagePath));
+
+      const response = await axios.post(CONFIG.API_ENDPOINT, formData, {
+        headers: formData.getHeaders(),
       });
-      return response.json();
+
+      const apiEndTime = Date.now();
+      const apiTimeTaken = (apiEndTime - apiStartTime) / 1000;
+      console.log(`${client.user.username}: API response took ${apiTimeTaken} seconds.`);
+      console.log(`${client.user.username}: API response:`, response.data);
+
+      if (response.status !== 200) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const detections = response.data.grid_positions;
+      if (!detections) {
+        throw new Error("No grid positions found in the API response.");
+      }
+
+      let rodPosition = null;
+      let seaBombPosition = null;
+      let latestFishingSpot = null;
+
+      detections.forEach((detection) => {
+        const { grid_x, grid_y, class: objectClass } = detection;
+        const gridCell = `${grid_y},${grid_x}`;
+        if (objectClass === "Hand" || objectClass === "Fishing Rod") {
+          rodPosition = gridCell;
+        } else if (objectClass === "Fishing Spot") {
+          latestFishingSpot = gridCell;
+        } else if (objectClass === "Sea Bomb") {
+          seaBombPosition = gridCell;
+        }
+      });
+
+      if (!rodPosition || !latestFishingSpot) {
+        throw new Error("Required positions (Hand, Fishing Rod, or Fishing Spot) not found in the API response.");
+      }
+
+      return { rodPosition, latestFishingSpot, seaBombPosition };
     },
 
-    async executeMoves(message, { success, square }) {
-      const moves = this.moves[square];
-      if (success && moves) {
-        for (const move of moves) {
-          // await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-          // await message.clickButton({ X: move, Y: 0 });
-          await clickButton(message, move, 0);
-          if (move === moves[moves.length - 1]) {
-            State.isBotBusy = false;
-          }
+    async executeMoves(message, { rodPosition, latestFishingSpot, seaBombPosition }) {
+      const key = `${latestFishingSpot}-${seaBombPosition}`;
+      const moveSet = moves[key];
+      if (moveSet) {
+        for (const move of moveSet) {
+          const buttonIndex = {
+            up: 1,
+            down: 3,
+            left: 0,
+            right: 4,
+            2: 2,
+          }[move];
+          await clickButton(message, buttonIndex, 0);
         }
       } else {
         await this.executeFailsafe(message);
-        State.isBotBusy = false;
       }
+      State.isBotBusy = false;
     },
 
     async executeFailsafe(message) {
       if (message.components[0].components[4]) {
-        // await message.clickButton({ X: 4, Y: 0 });
         await clickButton(message, 4, 0);
         await new Promise((r) => setTimeout(r, randomInt(100, 300)));
-        // await message.clickButton({ X: 2, Y: 0 });
         await clickButton(message, 2, 0);
       } else {
-        // await message.clickButton({ X: 2, Y: 0 });
         await clickButton(message, 2, 0);
       }
     },
@@ -397,7 +430,7 @@ async function slashy(token) {
 
       await new Promise((r) => setTimeout(r, diff));
 
-      if (State.bucketSpace < State.maxBucketSpace) {
+      if (State.bucketSpace < CONFIG.BUCKET_LIMIT) {
         // await message.clickButton({ X: 1, Y: 0 });
         await clickButton(message, 1, 0);
       } else {
@@ -442,9 +475,9 @@ async function slashy(token) {
 
   client.on("ready", async () => {
     console.log(`[STARTUP] ${client.user.username} is ready!`);
-
-    CommandManager.addCommand("inventory");
-    // auto use
+    if (CONFIG.AUTOBUY.length > 0 || CONFIG.AUTOUSE.length > 0) {
+      CommandManager.addCommand("inventory");
+    }
     CONFIG.AUTOUSE.forEach(({ name, time }) => {
       CommandManager.addCommand("use", [name]);
       setInterval(() => {
@@ -467,7 +500,7 @@ async function slashy(token) {
 
       // check if the bot is able to fish
       // auto unstuck the bot if it is stuck
-      setInterval(() => {
+      setInterval(async () => {
         if (
           State.isBotAbleToFish &&
           Date.now() - State.lastFishTimestamp > 60000
@@ -573,7 +606,7 @@ async function slashy(token) {
     }
 
     // Handle fishing cooldown
-    if (message?.embeds[0]?.description?.includes("You can fish again")) {
+    if (message?.embeds[0]?.description?.includes("You can fish again") || message?.embeds[0]?.title?.includes("There was nothing")) {
       if (!CONFIG.IS_FISHING_ENABLED) return;
       State.lastFishTimestamp = Date.now();
       await handleFishingCooldown(message);
