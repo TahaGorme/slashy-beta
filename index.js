@@ -159,9 +159,6 @@ let AVAILABLE_COMMANDS = [
 //   //remove postmemes from the list of available commands if fishing is enabled
 //   AVAILABLE_COMMANDS = AVAILABLE_COMMANDS.filter((cmd) => cmd !== "postmemes");
 // }
-function randomInt1(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
 
 async function processTokens() {
   const tokens = fs.readFileSync("tokens.txt", "utf-8")
@@ -173,13 +170,11 @@ async function processTokens() {
     console.log(`Logging in with token: ${token}`);
     slashy(token);
 
-    // Wait 1-3 seconds before next token
-    await new Promise(resolve => setTimeout(resolve, randomInt1(CONFIG.LOGIN_DELAY_MIN, CONFIG.LOGIN_DELAY_MAX)));
+    await new Promise(resolve => setTimeout(resolve, randomInt(CONFIG.LOGIN_DELAY_MIN, CONFIG.LOGIN_DELAY_MAX)));
   }
 }
 
 processTokens().catch(console.error);
-
 
 async function slashy(token) {
   const client = new Client();
@@ -664,10 +659,6 @@ async function slashy(token) {
   });
 
   // Helper functions
-  function randomInt(min, max) {
-    return Math.floor(Math.random() * (max - min + 1)) + min;
-  }
-
   async function initializeBot() {
     startCommandLoop();
     startRandomCommandScheduler();
@@ -1166,10 +1157,16 @@ async function slashy(token) {
 
   // Secure login using environment variable
   client.login(token);
+
   async function clickButton(message, x, y) {
     await message.clickButton({ X: x, Y: y });
     let button = message.components[y].components[x];
     State.lastButtonClick = button;
     State.lastButtonClickTimestamp = Date.now();
   }
+}
+
+// Extra global functions
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
