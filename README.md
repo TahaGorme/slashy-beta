@@ -1,7 +1,7 @@
 
 
 # Slashy Beta
-A beta version of [Slashy][https://github.com/TahaGorme/slashy], your tool for everything related to dank memer.
+A beta version of [Slashy](https://github.com/TahaGorme/slashy), your tool for everything related to dank memer.
 
 ## Table of Contents
 - [Installation](#installation)
