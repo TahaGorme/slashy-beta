@@ -5,19 +5,17 @@ const fs = require("fs");
 const axios = require("axios");
 const path = require("path");
 const FormData = require("form-data");
-const { connect } = require("puppeteer-real-browser");
-
 // Configuration object
 const CONFIG = {
   BOT_ID: "270904126974590976", // Discord bot ID to interact with
-  PLAY_IN_DMS: false, // Play in DMs instead of server
-  CHANNEL_ID: "796729044468367370", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
+  PLAY_IN_DMS: true, // Play in DMs instead of server
+  CHANNEL_ID: "", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
   DEV_MODE: false, // Debug mode flag (set to true for additional logging)
   WEBSITE_USERNAME: "slashy", // Website username
   WEBSITE_PASSWORD: "slashy", // Website
   API_ENDPOINT: "http://localhost:6000/predict", // API endpoint for image prediction
   POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
-  IS_FISHING_ENABLED: false, // Enable fishing minigame
+  IS_FISHING_ENABLED: true, // Enable fishing minigame
   IS_STREAMING_ENABLED: true, // Enable streaming minigame
   IS_ADVENTURE_ENABLED: true, // Enable adventure minigame
   AUTOUSE: [
@@ -45,14 +43,32 @@ const CONFIG = {
   COOLDOWNS: {
     highlow: 2000,
     beg: 10000,
-    crime: 2000,
+    crime: 30000,
     postmemes: 2000,
     search: 2000,
     hunt: 10000,
     dig: 10000,
   },
-
-  SEARCH_LOCATIONS: ["Basement"],
+  SEARCH_LOCATIONS: [
+    "Basement",
+    "Bus",
+    "Car",
+    "Coat",
+    "Computer",
+    "Dresser",
+    "Fridge",
+    "Grass",
+    "Laundromat",
+    "Mailbox",
+    "Pantry",
+    "Pocket",
+    "Shoe",
+    "Sink",
+    "Supreme Court",
+    "Twitter",
+    "Vacuum",
+    "Washer",
+  ],
   ADVENTURE_WEST: {
     "A lady next to a broken down wagon is yelling for help.": "Ignore Her",
     "A snake is blocking your path. What do you want to do?": "Wait",
@@ -134,7 +150,6 @@ let AVAILABLE_COMMANDS = [
   "search",
   "hunt",
   "dig",
-  "crime",
 ];
 // if (CONFIG.IS_FISHING_ENABLED) {
 //   //remove postmemes from the list of available commands if fishing is enabled
@@ -528,26 +543,8 @@ async function slashy(token) {
     await handleMessageUpdate(message);
   });
 
-  client.on("ite", async (message) => {
+  client.on("messageCreate", async (message) => {
     if (message?.flags?.has("EPHEMERAL")) {
-      //if title includes Tight
-      if (message.embeds[0]?.title?.includes("Tight")) {
-        let lastClickedButton = State.lastButtonClick;
-        let lastClickedTimestamp = State.lastButtonClickTimestamp;
-        let lastCommand = State.lastUsedCommand;
-        let lastCommandOptions = State.lastUsedCommandOptions;
-        let lastCommandTimestamp = State.lastCommandTimestamp;
-
-        //which was last clicked - button or command
-        if (lastClickedTimestamp > lastCommandTimestamp) {
-          //last clicked button
-          await clickButton(lastClickedButton);
-        } else {
-          //last used command
-          await CommandManager.addCommand(lastCommand, lastCommandOptions);
-        }
-      }
-
       if (message.embeds[0]?.title?.includes("Captcha")) {
         State.isBotBusy = true;
         const { browser, page } = await connect({
@@ -617,6 +614,23 @@ async function slashy(token) {
             }, 15000);
           })
           .catch((err) => console.error(err));
+      }
+      //if title includes Tight
+      if (message.embeds[0]?.title?.includes("Tight")) {
+        let lastClickedButton = State.lastButtonClick;
+        let lastClickedTimestamp = State.lastButtonClickTimestamp;
+        let lastCommand = State.lastUsedCommand;
+        let lastCommandOptions = State.lastUsedCommandOptions;
+        let lastCommandTimestamp = State.lastCommandTimestamp;
+
+        //which was last clicked - button or command
+        if (lastClickedTimestamp > lastCommandTimestamp) {
+          //last clicked button
+          await clickButton(lastClickedButton);
+        } else {
+          //last used command
+          await CommandManager.addCommand(lastCommand, lastCommandOptions);
+        }
       }
     }
     if (
@@ -1078,16 +1092,6 @@ async function slashy(token) {
       }
     }
 
-    // handle crime
-    //What crime do you want to commit
-    if (
-      message?.embeds[0]?.description?.includes(
-        "What crime do you want to commit"
-      )
-    ) {
-      // await message.clickButton({ X: 0, Y: 0 });
-      clickButton(message, randomInt(0, 2), 0);
-    }
     // Handle search locations
 
     if (message?.embeds[0]?.description?.includes("do you want to search")) {
