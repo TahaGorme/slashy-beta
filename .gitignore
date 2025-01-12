@@ -1,0 +1,7 @@
+# modules
+node_modules
+package-lock.json
+bun.lockb
+
+# mac internals
+.DS_Store

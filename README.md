@@ -1,13 +1,9 @@
-
-
 # Slashy Beta
 A beta version of [Slashy](https://github.com/TahaGorme/slashy), your tool for everything related to dank memer.
 
-## Table of Contents
-- [Installation](#installation)
+## ToC
 - [Model Download](#model-download)
-- [Setup](#setup)
-- [Dependencies](#dependencies)
+- [Installation](#installation)
 - [Getting Started](#getting-started)
 
 ---
@@ -53,5 +49,5 @@ Once all dependencies are installed and the model file is downloaded, you can st
 py main.py
 
 # Starting the Node.js application
-node index.js
+node .
 ```

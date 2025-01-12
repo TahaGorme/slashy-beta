@@ -1,107 +1,22 @@
 // Import required modules
-const { Client } = require("discord.js-selfbot-v13");
-const { connect } = require('puppeteer-real-browser');
-const chalk = require("chalk");
-const fs = require("fs");
-const axios = require("axios");
-const path = require("path");
-const FormData = require("form-data");
+import axios from "axios";
+import chalk from "chalk";
+import { Client } from "discord.js-selfbot-v13";
+import express from "express";
+import monitor from "express-status-monitor";
+import { FormData } from "formdata-node";
+import auth from "http-auth";
+import { connect } from "puppeteer-real-browser";
+
+// Import node-native modules
+import fs from "node:fs";
+import path from "node:path";
+
+// Import utilities
+import { Logger } from "./Logger.js";
+
 // Configuration object
-const CONFIG = {
-  BOT_ID: "270904126974590976", // Discord bot ID to interact with
-  PLAY_IN_DMS: false, // Play in DMs instead of server
-  CHANNEL_ID: "796729044468367370", // Channel ID for interaction (leave empty if PLAY_IN_DMS is true)
-  DEV_MODE: false, // Debug mode flag (set to true for additional logging)
-  WEBSITE_USERNAME: "slashy", // Website username
-  WEBSITE_PASSWORD: "slashy", // Website
-  API_ENDPOINT: "http://localhost:6000/predict", // API endpoint for image prediction
-  POST_MEMES_PLATFORMS: ["reddit", "tiktok"], // Platform to post memes or RANDOM
-  IS_FISHING_ENABLED: false, // Enable fishing minigame
-  IS_STREAMING_ENABLED: true, // Enable streaming minigame
-  IS_ADVENTURE_ENABLED: true, // Enable adventure minigame
-  BUCKET_LIMIT: 0, // Maximum bucket space,
-  LOGIN_DELAY_MIN: 4000, // Minimum delay between logins
-  LOGIN_DELAY_MAX: 8000, // Maximum delay between logins
-  AUTOUSE: [
-    {
-      name: "Lucky Horseshoe",
-      time: 1000 * 60 * 15.5,
-    },
-  ],
-  AUTOBUY: [
-    {
-      item: "Saver",
-      quantity: 2,
-    },
-    {
-      item: "Rifle",
-      quantity: 10,
-    },
-  ],
-  DELAYS: {
-    MIN_COMMAND: 100, // Minimum delay between commands
-    MAX_COMMAND: 200, // Maximum delay between commands
-    SHORT_BREAK: [3000, 6000], // Short break duration
-    LONG_BREAK: [30000, 60000], // Long break duration
-  },
-  COOLDOWNS: {
-    highlow: 2000,
-    beg: 10000,
-    crime: 10000,
-    postmemes: 2000,
-    search: 2000,
-    hunt: 10000,
-    dig: 10000,
-  },
-  SEARCH_LOCATIONS: [
-    "Basement",
-    "Bus",
-    "Car",
-    "Coat",
-    "Computer",
-    "Dresser",
-    "Fridge",
-    "Grass",
-    "Laundromat",
-    "Mailbox",
-    "Pantry",
-    "Pocket",
-    "Shoe",
-    "Sink",
-    "Supreme Court",
-    "Twitter",
-    "Vacuum",
-    "Washer",
-  ],
-  ADVENTURE_WEST: {
-    "A lady next to a broken down wagon is yelling for help.": "Ignore Her",
-    "A snake is blocking your path. What do you want to do?": "Wait",
-    "A stranger challenges you to a quick draw. What do you want to do?":
-      "Decline",
-    "Someone is getting ambushed by bandits!": "Ignore them",
-    "Someone on the trail is lost and asks you for directions.": "Ignore them",
-    "You bump into someone near the horse stables. They challenge you to a duel":
-      "Run away",
-    "You come across a saloon with a poker game going on inside. What do you want to do?":
-      "Join",
-    "You entered the saloon to rest from the journey. What do you want to do?":
-      "Play the piano",
-    "You find a dank cellar with an old wooden box": "Ignore it",
-    "You find an abandoned mine. What do you want to do?": "Explore",
-    "You found a stray horse. What do you want to do?": "Feed",
-    "You get on a train and some bandits decide to rob the train. What do you do?":
-      "Don't hurt me!",
-    "You see some bandits about to rob the local towns bank. What do you do?":
-      "Stop them",
-    "You wander towards an old abandoned mine.": "Go in",
-    "You're dying of thirst. Where do you want to get water?": "Cactus",
-    "You're riding on your horse and you get ambushed. What do you do?":
-      "Run away",
-    "Your horse sees a snake and throws you off. What do you do?":
-      "Find a new horse",
-    "__**WANTED:**__": "Billy Bob Jr.",
-  },
-};
+import CONFIG from "../config.js";
 
 //commands which will prevent the bot from executing other commands
 let BLOCKING_COMMANDS = ["postmemes"];
@@ -115,9 +30,7 @@ process.on("uncaughtException", (error) => {
   Logger.error(`An unexpected error occurred: ${error.stack}`);
 });
 
-const express = require("express");
 const app = express();
-const auth = require("http-auth");
 const basic = auth.basic(
   { realm: "Monitor Area" },
   function (user, pass, callback) {
@@ -128,24 +41,15 @@ const basic = auth.basic(
 );
 
 // Set '' to config path to avoid middleware serving the html page (path must be a string not equal to the wanted route)
-const statusMonitor = require("express-status-monitor")({ path: "" });
-app.use(statusMonitor.middleware); // use the "middleware only" property to manage websockets
+let statusMonitor = monitor({ path: "" });
+
+app.use(statusMonitor.middleware);
 app.get("/status", basic.check(statusMonitor.pageRoute)); // use the pageRoute property to serve the dashboard html page
 
 app.listen(3000, () => {
   console.log("Server listening on port 3000");
 });
 
-// Create a user-friendly logging system
-const Logger = {
-  info: (msg) => console.log(chalk.blue(`[INFO]: ${msg}`)),
-  success: (msg) => console.log(chalk.green(`[SUCCESS]: ${msg}`)),
-  warning: (msg) => console.log(chalk.yellow(`[WARNING]: ${msg}`)),
-  error: (msg) => console.log(chalk.red(`[ERROR]: ${msg}`)),
-  game: (msg) => console.log(chalk.magenta(`[GAME]: ${msg}`)),
-  fish: (msg) => console.log(chalk.cyan(`[FISH]: ${msg}`)),
-  money: (msg) => console.log(chalk.green(`[MONEY]: ${msg}`)),
-};
 // List of available commands to automatically queue
 let AVAILABLE_COMMANDS = [
   "highlow",
